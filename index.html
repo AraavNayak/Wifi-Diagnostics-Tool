@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiFi Diagnostics Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #ebf4ff 0%, #e0e7ff 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: #1f2937;
+        }
+
+        .status-card {
+            background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            color: white;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .status-label {
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+
+        .status-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .signal-bars {
+            display: flex;
+            gap: 0.25rem;
+            margin-top: 1rem;
+        }
+
+        .signal-bar {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 0.25rem;
+            transition: background 0.3s;
+        }
+
+        .signal-bar.active {
+            background: white;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .metric-card {
+            background: #f9fafb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        .metric-label {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1f2937;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .control-group {
+            background: #f9fafb;
+            padding: 1rem;
+            border-radius: 0.5rem;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 0.875rem;
+            color: #4b5563;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .control-group input,
+        .control-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: #d1d5db;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle.active {
+            background: #3b82f6;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+
+        .toggle.active .toggle-slider {
+            transform: translateX(20px);
+        }
+
+        .test-button {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+            margin-bottom: 1.5rem;
+        }
+
+        .test-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .test-button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .test-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 2px solid white;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .chart-container {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: #f9fafb;
+            border-radius: 0.5rem;
+        }
+
+        .chart-container h3 {
+            margin-bottom: 1rem;
+            color: #1f2937;
+            font-size: 1.125rem;
+        }
+
+        .history-container {
+            background: #f9fafb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .history-container h3 {
+            margin-bottom: 1rem;
+            color: #1f2937;
+            font-size: 1.125rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .clear-history {
+            font-size: 0.875rem;
+            color: #ef4444;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .history-item {
+            background: white;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .history-time {
+            color: #6b7280;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .history-stats {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .history-stat {
+            color: #1f2937;
+        }
+
+        .alert {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            color: #991b1b;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .icon {
+            width: 2.5rem;
+            height: 2.5rem;
+        }
+
+        .offline {
+            color: #ef4444;
+        }
+
+        .online {
+            color: #3b82f6;
+        }
+
+        .info-text {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WiFi Diagnostics</h1>
+            <svg id="connectionIcon" class="icon online" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path>
+            </svg>
+        </div>
+
+        <div class="alert" id="alertBox">
+            <strong>⚠️ Slow Connection Detected!</strong>
+            <p id="alertMessage"></p>
+        </div>
+
+        <div class="status-card">
+            <div class="status-row">
+                <div>
+                    <div class="status-label">Connection Status</div>
+                    <div class="status-value" id="connectionStatus">Connected</div>
+                </div>
+                <div style="text-align: right;">
+                    <div class="status-label">Signal Quality</div>
+                    <div class="status-value" id="signalQuality">Unknown</div>
+                </div>
+            </div>
+            <div class="signal-bars" id="signalBars">
+                <div class="signal-bar" style="height: 16px;"></div>
+                <div class="signal-bar" style="height: 24px;"></div>
+                <div class="signal-bar" style="height: 32px;"></div>
+                <div class="signal-bar" style="height: 40px;"></div>
+            </div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">⚡ Ping</div>
+                <div class="metric-value" id="pingValue">—</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">⬇️ Download</div>
+                <div class="metric-value" id="downloadValue">—</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">⬆️ Upload</div>
+                <div class="metric-value" id="uploadValue">—</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">🌐 DNS Lookup</div>
+                <div class="metric-value" id="dnsValue">—</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Auto-Test Interval</label>
+                <select id="intervalSelect" onchange="updateAutoTest()">
+                    <option value="0">Disabled</option>
+                    <option value="60">1 minute</option>
+                    <option value="300" selected>5 minutes</option>
+                    <option value="600">10 minutes</option>
+                    <option value="900">15 minutes</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Alert if Download Speed Below (Mbps)</label>
+                <input type="number" id="thresholdInput" value="10" min="1" max="1000" step="1">
+            </div>
+        </div>
+
+        <button class="test-button" id="testButton" onclick="runSpeedTest()">
+            Run Speed Test
+        </button>
+
+        <div class="chart-container">
+            <h3>Speed Over Time</h3>
+            <canvas id="speedChart"></canvas>
+        </div>
+
+        <div class="history-container">
+            <h3>
+                Test History
+                <span class="clear-history" onclick="clearHistory()">Clear All</span>
+            </h3>
+            <div id="historyList"></div>
+        </div>
+
+        <p class="info-text">Auto-testing enabled • Alerts configured • History tracked</p>
+    </div>
+
+    <script>
+        let connected = navigator.onLine;
+        let testHistory = JSON.parse(localStorage.getItem('wifiTestHistory') || '[]');
+        let autoTestInterval = null;
+        let chart = null;
+
+        // Initialize chart
+        function initChart() {
+            const ctx = document.getElementById('speedChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Download (Mbps)',
+                            data: [],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Ping (ms)',
+                            data: [],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2.5,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Download Speed (Mbps)'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Ping (ms)'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            }
+                        }
+                    }
+                }
+            });
+            updateChart();
+        }
+
+        // Update chart with history data
+        function updateChart() {
+            const last20 = testHistory.slice(-20);
+            chart.data.labels = last20.map(t => new Date(t.timestamp).toLocaleTimeString());
+            chart.data.datasets[0].data = last20.map(t => parseFloat(t.download) || 0);
+            chart.data.datasets[1].data = last20.map(t => t.ping || 0);
+            chart.update();
+        }
+
+        // Update connection status
+        function updateConnectionStatus() {
+            connected = navigator.onLine;
+            const icon = document.getElementById('connectionIcon');
+            const status = document.getElementById('connectionStatus');
+            const button = document.getElementById('testButton');
+
+            if (connected) {
+                icon.classList.remove('offline');
+                icon.classList.add('online');
+                status.textContent = 'Connected';
+                button.disabled = false;
+                button.textContent = 'Run Speed Test';
+            } else {
+                icon.classList.add('offline');
+                icon.classList.remove('online');
+                status.textContent = 'Disconnected';
+                button.disabled = true;
+                button.textContent = 'No Internet Connection';
+                updateSignalBars(0);
+            }
+        }
+
+        // Update signal bars
+        function updateSignalBars(bars) {
+            const signalBars = document.querySelectorAll('.signal-bar');
+            signalBars.forEach((bar, index) => {
+                if (index < bars) {
+                    bar.classList.add('active');
+                } else {
+                    bar.classList.remove('active');
+                }
+            });
+        }
+
+        // Get signal quality
+        function getSignalQuality(ping) {
+            if (ping === null) {
+                return { label: 'Unknown', bars: 0 };
+            }
+            if (ping < 50) return { label: 'Excellent', bars: 4 };
+            if (ping < 100) return { label: 'Good', bars: 3 };
+            if (ping < 200) return { label: 'Fair', bars: 2 };
+            return { label: 'Poor', bars: 1 };
+        }
+
+        // Measure DNS lookup time
+        async function measureDNS() {
+            const start = performance.now();
+            try {
+                await fetch('https://www.google.com', { 
+                    mode: 'no-cors',
+                    cache: 'no-store'
+                });
+                return Math.round(performance.now() - start);
+            } catch {
+                return null;
+            }
+        }
+
+        // Measure ping
+        async function measurePing() {
+            const start = Date.now();
+            try {
+                await fetch('https://www.google.com/favicon.ico', { 
+                    mode: 'no-cors',
+                    cache: 'no-store'
+                });
+                return Date.now() - start;
+            } catch {
+                return null;
+            }
+        }
+
+        // Measure download speed
+        async function measureDownloadSpeed() {
+            const fileSize = 5000000;
+            const start = Date.now();
+            
+            try {
+                const response = await fetch(`https://via.placeholder.com/1000x1000.jpg?${Date.now()}`, {
+                    cache: 'no-store'
+                });
+                await response.blob();
+                const duration = (Date.now() - start) / 1000;
+                const bitsLoaded = fileSize * 8;
+                const speedMbps = (bitsLoaded / duration / 1024 / 1024).toFixed(2);
+                return speedMbps;
+            } catch {
+                return null;
+            }
+        }
+
+        // Show alert
+        function showAlert(message) {
+            const alertBox = document.getElementById('alertBox');
+            const alertMessage = document.getElementById('alertMessage');
+            alertMessage.textContent = message;
+            alertBox.classList.add('show');
+            
+            // Play sound
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUKXh8bllHAU2kdfy0HotBSV5yPLaizsKE160y+utWBYKQ5zd8sFuJAUtg9Hy3Ik4Bxpnvf'); 
+            audio.play().catch(() => {});
+            
+            setTimeout(() => {
+                alertBox.classList.remove('show');
+            }, 5000);
+        }
+
+        // Check threshold and alert
+        function checkThreshold(download) {
+            const threshold = parseFloat(document.getElementById('thresholdInput').value);
+            if (download && parseFloat(download) < threshold) {
+                showAlert(`Download speed (${download} Mbps) is below your threshold of ${threshold} Mbps`);
+            }
+        }
+
+        // Add to history
+        function addToHistory(data) {
+            testHistory.push({
+                timestamp: new Date().toISOString(),
+                ...data
+            });
+            
+            // Keep only last 50 tests
+            if (testHistory.length > 50) {
+                testHistory = testHistory.slice(-50);
+            }
+            
+            localStorage.setItem('wifiTestHistory', JSON.stringify(testHistory));
+            updateHistoryDisplay();
+            updateChart();
+        }
+
+        // Update history display
+        function updateHistoryDisplay() {
+            const historyList = document.getElementById('historyList');
+            if (testHistory.length === 0) {
+                historyList.innerHTML = '<p style="color: #6b7280; text-align: center;">No tests yet</p>';
+                return;
+            }
+            
+            historyList.innerHTML = testHistory.slice().reverse().map(item => {
+                const date = new Date(item.timestamp);
+                return `
+                    <div class="history-item">
+                        <div class="history-time">${date.toLocaleString()}</div>
+                        <div class="history-stats">
+                            <span class="history-stat">Ping: ${item.ping || '—'}ms</span>
+                            <span class="history-stat">Download: ${item.download || '—'} Mbps</span>
+                            <span class="history-stat">DNS: ${item.dns || '—'}ms</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Clear history
+        function clearHistory() {
+            if (confirm('Clear all test history?')) {
+                testHistory = [];
+                localStorage.removeItem('wifiTestHistory');
+                updateHistoryDisplay();
+                updateChart();
+            }
+        }
+
+        // Update auto-test
+        function updateAutoTest() {
+            const interval = parseInt(document.getElementById('intervalSelect').value);
+            
+            if (autoTestInterval) {
+                clearInterval(autoTestInterval);
+                autoTestInterval = null;
+            }
+            
+            if (interval > 0) {
+                autoTestInterval = setInterval(() => {
+                    if (connected) {
+                        runSpeedTest(true);
+                    }
+                }, interval * 1000);
+            }
+        }
+
+        // Run speed test
+        async function runSpeedTest(isAuto = false) {
+            if (!connected) return;
+
+            const button = document.getElementById('testButton');
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner"></span>Testing...';
+
+            // Reset values
+            document.getElementById('pingValue').textContent = '—';
+            document.getElementById('downloadValue').textContent = '—';
+            document.getElementById('uploadValue').textContent = '—';
+            document.getElementById('dnsValue').textContent = '—';
+            document.getElementById('signalQuality').textContent = 'Testing...';
+            updateSignalBars(0);
+
+            const results = {};
+
+            // Test DNS
+            const dns = await measureDNS();
+            if (dns !== null) {
+                document.getElementById('dnsValue').textContent = `${dns}ms`;
+                results.dns = dns;
+            }
+
+            // Test ping
+            const ping = await measurePing();
+            if (ping !== null) {
+                document.getElementById('pingValue').textContent = `${ping}ms`;
+                results.ping = ping;
+                const signal = getSignalQuality(ping);
+                document.getElementById('signalQuality').textContent = signal.label;
+                updateSignalBars(signal.bars);
+            }
+
+            // Test download speed
+            const download = await measureDownloadSpeed();
+            if (download !== null) {
+                document.getElementById('downloadValue').textContent = `${download} Mbps`;
+                results.download = download;
+                
+                // Check threshold
+                if (isAuto) {
+                    checkThreshold(download);
+                }
+            }
+
+            // Estimate upload
+            if ('connection' in navigator && navigator.connection.downlink) {
+                const upload = (navigator.connection.downlink * 0.8).toFixed(2);
+                document.getElementById('uploadValue').textContent = `${upload} Mbps`;
+                results.upload = upload;
+            }
+
+            // Add to history
+            addToHistory(results);
+
+            button.disabled = false;
+            button.textContent = 'Run Speed Test';
+        }
+
+        // Event listeners
+        window.addEventListener('online', updateConnectionStatus);
+        window.addEventListener('offline', updateConnectionStatus);
+
+        // Initialize
+        updateConnectionStatus();
+        initChart();
+        updateHistoryDisplay();
+        updateAutoTest();
+    </script>
+</body>
+</html>
